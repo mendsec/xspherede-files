@@ -1,0 +1,5 @@
+.claude/
+*security-audit*
+*vulnerability*
+*.patch
+/target

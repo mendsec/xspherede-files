@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cube Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #02060f;
+    --panel: #06101e;
+    --panel-2: #0a1830;
+    --line: #15304f;
+    --text: #d6e4f5;
+    --muted: #6f8aa8;
+    --amber: #ffa53a;
+    --gold: #ffd36b;
+    --blue: #3a7cc0;
+    --copy: #3de0ff;
+    --cut: #ff3d6e;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.4 Inter, system-ui, sans-serif; overflow: hidden; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .hidden { display: none !important; }
+
+  /* ---------------- City view ---------------- */
+  #city { position: fixed; inset: 0; }
+  #cityCanvas { width: 100%; height: 100%; display: block; cursor: grab; }
+  #cityCanvas.pointing { cursor: pointer; }
+  #cityLabels, #mapLabels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .dlabel { position: absolute; transform: translate(-50%, -100%); font: 600 11px var(--mono);
+    letter-spacing: .18em; color: #9cc3ff; text-shadow: 0 0 8px #000; white-space: nowrap; }
+  .dlabel small { display: block; color: var(--muted); font-weight: 400; letter-spacing: .05em; text-align: center; }
+  .cityHud { position: absolute; left: 24px; top: 20px; max-width: min(520px, calc(100% - 48px)); }
+  .cityHud h1 { margin: 0; font: 600 13px var(--mono); letter-spacing: .4em; color: #8fb6ff; }
+  .cityHud p { margin: 6px 0 14px; color: var(--muted); font-size: 13px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #050d1acc; }
+  .seg button { background: none; border: 0; padding: 7px 14px; color: var(--muted); font: 500 12px var(--mono); letter-spacing: .08em; }
+  .seg button.on { background: #12305a; color: #fff; }
+  .cityHud .enter { margin-left: 8px; padding: 7px 14px; border-radius: 8px; border: 1px solid #2c5a92;
+    background: #0b2142; color: #cfe2ff; font: 500 12px var(--mono); }
+  #tip { position: fixed; pointer-events: none; padding: 8px 10px; background: #050d1aee; border: 1px solid var(--line);
+    border-radius: 6px; font: 12px var(--mono); color: var(--text); transform: translate(14px, 14px); white-space: nowrap; }
+  #tip b { color: #fff; }
+  #tip span { color: var(--muted); }
+
+  /* ---------------- Flat view ---------------- */
+  #flat { position: fixed; inset: 0; display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 38%);
+    grid-template-rows: auto minmax(0, 1fr) auto; }
+  .toolbar { grid-column: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .toolbar .grp { display: flex; gap: 4px; }
+  .toolbar button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; font-size: 13px; }
+  .toolbar button:hover:not(:disabled) { border-color: #2c5a92; }
+  .toolbar button:disabled { opacity: .35; cursor: default; }
+  #crumbs { flex: 1 1 240px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font: 13px var(--mono); min-width: 0; }
+  #crumbs a { color: #9cc3ff; padding: 2px 6px; border-radius: 4px; cursor: pointer; }
+  #crumbs a:hover { background: #12305a; }
+  #crumbs a.last { color: #fff; }
+  #crumbs i { color: var(--muted); font-style: normal; }
+  #clipChip { font: 12px var(--mono); padding: 4px 8px; border-radius: 6px; display: flex; gap: 6px; align-items: center; }
+  #clipChip.copy { color: var(--copy); border: 1px solid #1a6a7a; background: #062430; }
+  #clipChip.cut { color: var(--cut); border: 1px dashed #8a2140; background: #2a0612; }
+  #clipChip button { background: none; border: 0; padding: 0 2px; color: inherit; }
+
+  #files { grid-column: 1; overflow: auto; padding: 16px; outline: none;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); align-content: start; gap: 8px; }
+  .card { border: 1px solid transparent; border-radius: 8px; padding: 10px 6px 8px; text-align: center; cursor: default; user-select: none; }
+  .card:hover { background: #0a1a30; }
+  .card.sel { background: #10284a; border-color: #2c5a92; }
+  .card.copying { box-shadow: inset 0 0 0 1px var(--copy); }
+  .card.cutting { opacity: .45; border: 1px dashed var(--cut); }
+  .card.fresh { animation: fresh 1.2s ease-out; }
+  @keyframes fresh { from { background: #ffd36b44; } to { background: transparent; } }
+  .card svg { width: 54px; height: 46px; display: block; margin: 0 auto 6px; }
+  .card .nm { font-size: 12.5px; overflow-wrap: anywhere; }
+  .card .sz { font: 11px var(--mono); color: var(--muted); margin-top: 2px; }
+  .empty { grid-column: 1 / -1; color: var(--muted); text-align: center; padding: 40px; font: 13px var(--mono); }
+
+  #status { grid-column: 1; padding: 6px 14px; border-top: 1px solid var(--line); background: var(--panel);
+    font: 12px var(--mono); color: var(--muted); display: flex; gap: 18px; flex-wrap: wrap; }
+
+  /* ---------------- Map pane ---------------- */
+  #mapPane { grid-column: 2; grid-row: 1 / 4; display: flex; flex-direction: column; min-height: 0;
+    background: radial-gradient(ellipse at 50% 35%, #071a30 0%, #020812 70%); border-left: 1px solid #1d3d63; }
+  .mapHead { padding: 12px 14px 6px; font: 600 11px var(--mono); letter-spacing: .3em; color: var(--amber);
+    display: flex; justify-content: space-between; gap: 10px; }
+  #mapPath { letter-spacing: .04em; color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #map { position: relative; flex: 1; min-height: 240px; cursor: grab; }
+  #map canvas { display: block; width: 100%; height: 100%; }
+  .rlabel { position: absolute; transform: translate(-50%, -130%); font: 600 10px var(--mono); letter-spacing: .12em;
+    color: var(--amber); text-shadow: 0 0 6px #000, 0 0 2px #000; white-space: nowrap; text-transform: uppercase; transition: opacity .25s; }
+  .rlabel.cur { color: var(--gold); font-size: 11px; }
+  .rlabel.unexp { color: #6a9bd0; }
+  .rlabel.copy { color: var(--copy); }
+  .rlabel.cut { color: var(--cut); }
+  .rlabel em { display: block; font-style: normal; font-weight: 400; font-size: 9px; letter-spacing: .08em; text-align: center; }
+  #legend { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 6px 14px; font: 10px var(--mono); color: var(--muted); border-top: 1px solid #10263f; }
+  #legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 5px; border: 1px solid currentColor; vertical-align: -1px; }
+  #legend .u { color: #4a7fb8; } #legend .e { color: var(--amber); } #legend .c { color: var(--gold); }
+  #legend .cp { color: var(--copy); } #legend .ct { color: var(--cut); }
+  #logbook { padding: 6px 14px 12px; font: 11px var(--mono); color: var(--muted); height: 108px; overflow: hidden; border-top: 1px solid #10263f; }
+  #logbook div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #logbook div:first-child { color: var(--text); }
+  #logbook .k { display: inline-block; width: 56px; }
+
+  #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .35s; z-index: 10; }
+  #fade.on { opacity: 1; }
+  #toast { position: fixed; left: 50%; bottom: 46px; transform: translateX(-50%); background: #0b2142; border: 1px solid #2c5a92;
+    padding: 8px 14px; border-radius: 8px; font: 12px var(--mono); opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 11; }
+  #toast.on { opacity: 1; }
+
+  @media (max-width: 760px) {
+    #flat { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) 42vh auto; }
+    #mapPane { grid-column: 1; grid-row: 3; border-left: 0; border-top: 1px solid #1d3d63; }
+    #status { grid-row: 4; }
+    #logbook { display: none; }
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+
+<!-- ============ City (intro) view ============ -->
+<section id="city">
+  <canvas id="cityCanvas"></canvas>
+  <div id="cityLabels"></div>
+  <div class="cityHud">
+    <h1>CUBE EXPLORER</h1>
+    <p>Every folder is a structure. Height is total size, footprint is file count, density is average file weight.
+       Click a structure to dive into it, or drag to orbit.</p>
+    <div class="seg" role="group" aria-label="City style">
+      <button id="mMetro" class="on">METROPOLIS</button><button id="mMono">MONOLITHS</button>
+    </div>
+    <button class="enter" id="enterHome">ENTER /home ↵</button>
+  </div>
+</section>
+<div id="tip" class="hidden"></div>
+
+<!-- ============ Flat (file manager) view ============ -->
+<section id="flat" class="hidden">
+  <header class="toolbar">
+    <div class="grp">
+      <button id="bBack" title="Back (Alt+Left)">‹</button>
+      <button id="bFwd" title="Forward (Alt+Right)">›</button>
+      <button id="bUp" title="Parent folder (Backspace)">↑</button>
+    </div>
+    <nav id="crumbs"></nav>
+    <div id="clipChip" class="hidden"></div>
+    <div class="grp">
+      <button id="bCopy" title="Copy (Ctrl+C)">Copy</button>
+      <button id="bCut" title="Cut (Ctrl+X)">Cut</button>
+      <button id="bPaste" title="Paste (Ctrl+V)">Paste</button>
+      <button id="bNew" title="New folder (Ctrl+Shift+N)">New folder</button>
+    </div>
+    <div class="grp">
+      <button id="bDemo" title="Run a scripted tour">▶ Demo</button>
+      <button id="bCity" title="Back to the city (Esc)">City</button>
+    </div>
+  </header>
+  <main id="files" tabindex="0"></main>
+  <footer id="status"></footer>
+  <aside id="mapPane">
+    <div class="mapHead"><span>SECTOR MAP</span><span id="mapPath"></span></div>
+    <div id="map"><div id="mapLabels"></div></div>
+    <div id="legend"><span class="u">unexplored</span><span class="e">explored</span><span class="c">you</span><span class="cp">copy</span><span class="ct">cut</span></div>
+    <div id="logbook"></div>
+  </aside>
+</section>
+
+<div id="fade"></div>
+<div id="toast"></div>
+
+<script type="module">
+import * as THREE from 'three';
+const V3 = THREE.Vector3;
+const $ = (id) => document.getElementById(id);
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const easeIO = (k) => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const easeOut = (k) => 1 - Math.pow(1 - k, 3);
+
+/* =====================================================================
+   Simulated file system
+   ===================================================================== */
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rng = mulberry32(20261121);
+let nextId = 1;
+function mk(name, type, parent, size = 0) {
+  const n = { id: nextId++, name, type, parent, size, children: type === 'dir' ? [] : null };
+  if (parent) parent.children.push(n);
+  return n;
+}
+const SPEC = {
+  Documents: { Reports: { '2025': {}, '2026': {} }, Invoices: {}, Notes: {} },
+  Projects: { xspherede: { src: {}, docs: {}, assets: { shaders: {}, textures: {} } }, 'cube-explorer': { src: {}, prototypes: {} }, sandbox: {} },
+  Pictures: { Wallpapers: {}, Screenshots: {}, Camera: { '2025': {}, '2026': {} } },
+  Music: { Ambient: {}, Synthwave: {} },
+  Videos: { Captures: {}, Films: {} },
+  Downloads: {},
+  '.config': { nvim: {}, wgpu: {} },
+  Archive: { Backups: { Old: {} } },
+};
+const PROFILE = {
+  Documents: { ext: ['pdf', 'odt', 'md', 'txt', 'ods'], min: 4e3, max: 6e6 },
+  Projects: { ext: ['rs', 'toml', 'md', 'wgsl', 'json'], min: 5e2, max: 2e5 },
+  Pictures: { ext: ['png', 'jpg', 'webp'], min: 2e5, max: 2.5e7 },
+  Music: { ext: ['flac', 'ogg', 'mp3'], min: 3e6, max: 6e7 },
+  Videos: { ext: ['mkv', 'mp4', 'webm'], min: 2e8, max: 4e9 },
+  Downloads: { ext: ['iso', 'zip', 'tar.gz', 'deb'], min: 1e6, max: 3e9 },
+  '.config': { ext: ['toml', 'conf', 'json', 'lua'], min: 1e2, max: 2e4 },
+  Archive: { ext: ['tar.zst', 'zip', '7z'], min: 1e7, max: 8e8 },
+};
+const WORDS = ['alpha', 'nova', 'orbit', 'draft', 'final', 'index', 'layer', 'scan', 'delta', 'core', 'vault', 'atlas',
+  'prism', 'echo', 'relay', 'north', 'pulse', 'quartz', 'sector', 'signal', 'trace', 'zenith', 'frame', 'beacon', 'grid'];
+const pick = (a) => a[Math.floor(rng() * a.length)];
+const logRand = (min, max) => Math.round(Math.exp(Math.log(min) + rng() * (Math.log(max) - Math.log(min))));
+function populate(dir, p, minF = 1, maxF = 8) {
+  const n = minF + Math.floor(rng() * (maxF - minF + 1)), used = new Set();
+  for (let i = 0; i < n; i++) {
+    let nm; do { nm = pick(WORDS) + (rng() < .5 ? '-' + Math.floor(rng() * 99) : '') + '.' + pick(p.ext); } while (used.has(nm));
+    used.add(nm); mk(nm, 'file', dir, logRand(p.min, p.max));
+  }
+}
+function buildSpec(parent, spec, profile) {
+  for (const [k, v] of Object.entries(spec)) {
+    const d = mk(k, 'dir', parent), p = profile || PROFILE[k];
+    populate(d, p); buildSpec(d, v, p);
+  }
+}
+const root = mk('home', 'dir', null);
+buildSpec(root, SPEC, null);
+populate(root, { ext: ['md', 'txt'], min: 200, max: 4000 }, 1, 2);
+
+let sizeCache = new Map();
+const invalidate = () => { sizeCache = new Map(); };
+function sizeOf(n) {
+  if (n.type === 'file') return n.size;
+  if (sizeCache.has(n.id)) return sizeCache.get(n.id);
+  let s = 0; for (const c of n.children) s += sizeOf(c);
+  sizeCache.set(n.id, s); return s;
+}
+const directFiles = (d) => d.children.filter(c => c.type === 'file');
+const subDirs = (d) => d.children.filter(c => c.type === 'dir');
+function allDirs(from = root) { const r = []; (function w(d) { r.push(d); subDirs(d).forEach(w); })(from); return r; }
+function pathOf(n) { const a = []; for (let x = n; x; x = x.parent) a.unshift(x.name); return '/' + a.join('/'); }
+function byPath(p) { let n = root; for (const part of p.split('/').filter(Boolean).slice(1)) { n = n.children.find(c => c.name === part); if (!n) return null; } return n; }
+function topAncestor(n) { while (n.parent && n.parent.parent) n = n.parent; return n; }
+function isAncestorOrSelf(a, b) { for (let x = b; x; x = x.parent) if (x === a) return true; return false; }
+function fmtSize(b) { const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (b >= 1024 && i < 4) { b /= 1024; i++; } return (i ? b.toFixed(b < 10 ? 1 : 0) : b) + ' ' + u[i]; }
+const HUES = { Documents: .58, Projects: .52, Pictures: .78, Music: .88, Videos: .02, Downloads: .12, '.config': .33, Archive: .68 };
+const hueOf = (n) => n === root ? .6 : (HUES[topAncestor(n).name] ?? .55);
+function uniqueName(dir, name) {
+  if (!dir.children.some(c => c.name === name)) return name;
+  const dot = name.lastIndexOf('.'), base = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : '';
+  for (let i = 1; ; i++) { const nm = `${base} (copy${i > 1 ? ' ' + i : ''})${ext}`; if (!dir.children.some(c => c.name === nm)) return nm; }
+}
+function deepClone(n, parent) {
+  const c = mk(n.name, n.type, parent, n.size);
+  if (n.type === 'dir') n.children.forEach(ch => deepClone(ch, c));
+  return c;
+}
+
+/* =====================================================================
+   Shared UI helpers
+   ===================================================================== */
+let toastTimer;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 1800); }
+const fade = (on) => $('fade').classList.toggle('on', on);
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+const C = {
+  unexp: new THREE.Color(0x2f6aa6), exp: new THREE.Color(0xff9a2e), cur: new THREE.Color(0xffd36b),
+  copy: new THREE.Color(0x3de0ff), cut: new THREE.Color(0xff3d6e), route: new THREE.Color(0xffc24a),
+};
+const box = new THREE.BoxGeometry(1, 1, 1), boxEdges = new THREE.EdgesGeometry(box);
+const boxUp = new THREE.BoxGeometry(1, 1, 1).translate(0, .5, 0), boxUpEdges = new THREE.EdgesGeometry(boxUp);
+
+/* =====================================================================
+   CITY VIEW — folders as a metropolis or as stacked monoliths
+   ===================================================================== */
+const cityCanvas = $('cityCanvas');
+const cr = new THREE.WebGLRenderer({ canvas: cityCanvas, antialias: true });
+cr.setPixelRatio(Math.min(devicePixelRatio, 2));
+cr.toneMapping = THREE.ACESFilmicToneMapping;
+const cs = new THREE.Scene();
+cs.background = new THREE.Color(0x02060f);
+cs.fog = new THREE.FogExp2(0x02060f, 0.0095);
+const cc = new THREE.PerspectiveCamera(50, 1, .1, 400);
+cs.add(new THREE.HemisphereLight(0x5a8cff, 0x05070d, 1.1));
+const keyL = new THREE.DirectionalLight(0xbfd6ff, 1.6); keyL.position.set(20, 40, 10); cs.add(keyL);
+const glowL = new THREE.PointLight(0x3d7bff, 120, 70, 1.4); glowL.position.set(0, 10, 0); cs.add(glowL);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0x030812, metalness: .8, roughness: .45 }));
+floor.rotation.x = -Math.PI / 2; cs.add(floor);
+const grid = new THREE.GridHelper(240, 120, 0x163a6a, 0x0b1d38); grid.position.y = .01; cs.add(grid);
+const beacon = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, 80, 8, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0xffc24a, transparent: true, opacity: .55, blending: THREE.AdditiveBlending, depthWrite: false }));
+beacon.position.y = 40; beacon.visible = false; cs.add(beacon);
+
+function windowTexture() {
+  const c = document.createElement('canvas'); c.width = 32; c.height = 64;
+  const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, 32, 64);
+  for (let y = 2; y < 64; y += 6) for (let x = 2; x < 32; x += 6)
+    if (Math.random() < .5) { g.fillStyle = `rgba(255,255,255,${.35 + Math.random() * .65})`; g.fillRect(x, y, 3, 3); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const winTex = windowTexture();
+
+const city = { group: null, items: [], pick: [], labels: [], mode: 0, modeTarget: 0, built: 0, hover: null };
+function spiral(n) {
+  let x = 0, y = 0, dx = 1, dy = 0, seg = 1, passed = 0, turns = 0;
+  for (let i = 0; i < n; i++) { x += dx; y += dy; if (++passed === seg) { passed = 0; [dx, dy] = [-dy, dx]; if (++turns % 2 === 0) seg++; } }
+  return [x, y];
+}
+function disposeTree(obj) { obj.traverse(o => { if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.emissiveMap?.dispose(); m.dispose(); }); } }); }
+
+function buildCity() {
+  if (city.group) { cs.remove(city.group); disposeTree(city.group); }
+  city.labels.forEach(l => l.el.remove());
+  city.group = new THREE.Group(); city.items = []; city.pick = []; city.labels = [];
+  cs.add(city.group);
+  invalidate();
+  const dirs = allDirs().filter(d => d !== root);
+  const logs = dirs.map(d => Math.log(sizeOf(d) + 1));
+  const lmin = Math.min(...logs), lmax = Math.max(...logs);
+  const avgs = dirs.map(d => { const f = directFiles(d); return f.length ? Math.log(f.reduce((s, x) => s + x.size, 0) / f.length) : null; }).filter(x => x !== null);
+  const amin = Math.min(...avgs), amax = Math.max(...avgs);
+  const districts = subDirs(root);
+  const cols = Math.ceil(Math.sqrt(districts.length)), rows = Math.ceil(districts.length / cols);
+  const CELL = 2.7;
+  const maxCount = Math.max(...districts.map(d => allDirs(d).length));
+  const SP = CELL * (Math.ceil(Math.sqrt(maxCount)) + 3);
+  districts.forEach((dist, i) => {
+    const cx = (i % cols - (cols - 1) / 2) * SP, cz = (Math.floor(i / cols) - (rows - 1) / 2) * SP;
+    const list = allDirs(dist).sort((a, b) => sizeOf(b) - sizeOf(a));
+    let maxH = 0;
+    list.forEach((dir, j) => {
+      const [sx, sz] = spiral(j);
+      const nrm = (Math.log(sizeOf(dir) + 1) - lmin) / Math.max(1e-6, lmax - lmin);
+      const f = directFiles(dir);
+      const dens = f.length ? clamp01((Math.log(f.reduce((s, x) => s + x.size, 0) / f.length) - amin) / Math.max(1e-6, amax - amin)) : .1;
+      const item = makeCityItem(dir, cx + sx * CELL, cz + sz * CELL, nrm, dens, f.length, i * .18 + j * .07);
+      maxH = Math.max(maxH, item.h);
+    });
+    const el = document.createElement('div'); el.className = 'dlabel';
+    el.innerHTML = `${dist.name.toUpperCase()}<small>${fmtSize(sizeOf(dist))}</small>`;
+    $('cityLabels').appendChild(el);
+    city.labels.push({ el, pos: new V3(cx, maxH + 1.5, cz) });
+  });
+  city.built = clock.getElapsedTime();
+}
+
+function makeCityItem(dir, x, z, nrm, dens, nFiles, delay) {
+  const g = new THREE.Group(); g.position.set(x, 0, z);
+  const col = new THREE.Color().setHSL(hueOf(dir), .75, .52);
+  const h = .8 + nrm * 13, w = .8 + .9 * Math.min(1, nFiles / 8);
+  // Metropolis building
+  const b = new THREE.Group();
+  const tx = winTex.clone(); tx.needsUpdate = true; tx.repeat.set(Math.max(1, Math.round(w * 1.5)), Math.max(1, Math.round(h / 1.4)));
+  const bm = new THREE.MeshStandardMaterial({ color: col.clone().multiplyScalar(.08 + .25 * dens), emissive: col, emissiveMap: tx,
+    emissiveIntensity: .5 + dens, metalness: .75, roughness: .3, transparent: true, opacity: .5 + .5 * dens });
+  const mesh = new THREE.Mesh(boxUp, bm); mesh.scale.set(w, 1, w);
+  const em = new THREE.LineBasicMaterial({ color: col.clone().lerp(new THREE.Color(0xffffff), .35), transparent: true, opacity: .55 + .4 * dens });
+  const edge = new THREE.LineSegments(boxUpEdges, em); edge.scale.set(w, 1, w);
+  b.add(mesh, edge); g.add(b);
+  // Monolith stack: translucent cubes whose opacity tracks density
+  const st = new THREE.Group(); const n = Math.max(1, Math.round(1 + nrm * 7)); const csz = 1.25 + .8 * Math.min(1, nFiles / 8);
+  const cubes = [];
+  for (let k = 0; k < n; k++) {
+    const m = new THREE.MeshStandardMaterial({ color: col.clone().multiplyScalar(.15 + .45 * dens), emissive: col,
+      emissiveIntensity: .12 + .8 * dens, metalness: .2, roughness: .1, transparent: true,
+      opacity: (.1 + .85 * dens) * (1 - .35 * k / n), depthWrite: dens > .55 });
+    const cube = new THREE.Mesh(box, m);
+    const ce = new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: col.clone().lerp(new THREE.Color(0xffffff), .5), transparent: true, opacity: .3 + .6 * dens }));
+    cube.add(ce);
+    cube.userData = { baseY: csz / 2 + k * csz * 1.12, k, item: null };
+    st.add(cube); cubes.push(cube);
+  }
+  g.add(st);
+  city.group.add(g);
+  const item = { dir, group: g, b, st, cubes, bm, h, w, csz, n, delay, dens, base: .5 + dens, hl: 0 };
+  mesh.userData.item = item; city.pick.push(mesh);
+  cubes.forEach(c => { c.userData.item = item; city.pick.push(c); });
+  city.items.push(item);
+  return item;
+}
+
+const cam = { ang: .7, rad: 120, hgt: 85, tRad: 58, tHgt: 30, target: new V3(0, 2, 0), goal: new V3(0, 2, 0), drag: null, idle: 0 };
+let flight = null;
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+
+function cityFrame(t, dt) {
+  city.mode += (city.modeTarget - city.mode) * Math.min(1, dt * 2.5);
+  const m = city.mode;
+  for (const it of city.items) {
+    const grow = easeOut(clamp01((t - city.built - it.delay) / 1.4));
+    const bs = grow * clamp01(1 - m * 1.6);
+    it.b.visible = bs > .002; it.b.scale.set(1, Math.max(.001, it.h * bs), 1);
+    it.hl += ((city.hover === it ? 1 : 0) - it.hl) * Math.min(1, dt * 10);
+    it.bm.emissiveIntensity = it.base + it.hl * 1.2;
+    it.st.visible = m > .01;
+    for (const c of it.cubes) {
+      const k = c.userData.k;
+      const s = easeOut(clamp01(m * 1.8 - .8 * k / it.n)) * grow;
+      c.scale.setScalar(Math.max(.001, it.csz * s));
+      c.position.y = c.userData.baseY * s + Math.sin(t * 1.3 + it.delay * 7 + k * .6) * .06 * m;
+      c.rotation.y = Math.sin(t * .4 + it.delay * 5) * .08 * m;
+      c.material.emissiveIntensity = .12 + .8 * it.dens + it.hl * .9;
+    }
+  }
+  if (flight) {
+    const k = clamp01((t - flight.t0) / flight.dur), e = easeIO(k);
+    cc.position.lerpVectors(flight.from, flight.to, e);
+    cam.target.lerpVectors(flight.fromT, flight.toT, e);
+    cc.lookAt(cam.target);
+    if (k > .62 && !flight.faded) { flight.faded = true; fade(true); }
+    if (k >= 1) { const d = flight.dir; flight = null; enterFlat(d); }
+  } else {
+    if (!cam.drag) { cam.idle += dt; if (cam.idle > 2.5) cam.ang += dt * .035; }
+    cam.rad += (cam.tRad - cam.rad) * Math.min(1, dt * 1.1);
+    cam.hgt += (cam.tHgt - cam.hgt) * Math.min(1, dt * 1.1);
+    cam.target.lerp(cam.goal, Math.min(1, dt * 1.5));
+    cc.position.set(cam.target.x + Math.sin(cam.ang) * cam.rad, cam.hgt, cam.target.z + Math.cos(cam.ang) * cam.rad);
+    cc.lookAt(cam.target);
+  }
+  glowL.intensity = 110 + Math.sin(t * .7) * 30;
+  beacon.material.opacity = .35 + .25 * Math.sin(t * 3);
+  const w = cityCanvas.clientWidth, h = cityCanvas.clientHeight, v = new V3();
+  for (const l of city.labels) {
+    v.copy(l.pos).project(cc);
+    const vis = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+    l.el.style.display = vis ? '' : 'none';
+    if (vis) l.el.style.transform = `translate(${(v.x + 1) / 2 * w}px, ${(1 - v.y) / 2 * h}px) translate(-50%,-100%)`;
+  }
+  cr.render(cs, cc);
+}
+
+function cityPick(e) {
+  const r = cityCanvas.getBoundingClientRect();
+  ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+  ray.setFromCamera(ptr, cc);
+  const hit = ray.intersectObjects(city.pick, false).find(h => h.object.parent?.visible !== false && (h.object.visible));
+  return hit ? hit.object.userData.item : null;
+}
+cityCanvas.addEventListener('pointerdown', e => { cam.drag = { x: e.clientX, y: e.clientY, ang: cam.ang, moved: 0 }; cityCanvas.setPointerCapture(e.pointerId); });
+cityCanvas.addEventListener('pointermove', e => {
+  if (cam.drag) {
+    const dx = e.clientX - cam.drag.x; cam.drag.moved = Math.max(cam.drag.moved, Math.abs(dx) + Math.abs(e.clientY - cam.drag.y));
+    cam.ang = cam.drag.ang - dx * .005; cam.tHgt = Math.max(6, Math.min(90, cam.tHgt + e.movementY * .08)); cam.idle = 0;
+  }
+  if (flight) return;
+  const it = cityPick(e); city.hover = it;
+  cityCanvas.classList.toggle('pointing', !!it);
+  const tip = $('tip');
+  if (it) {
+    const d = it.dir;
+    tip.innerHTML = `<b>${pathOf(d)}</b><br><span>${fmtSize(sizeOf(d))} · ${directFiles(d).length} files · ${subDirs(d).length} folders · density ${(it.dens * 100).toFixed(0)}%</span>`;
+    tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px'; tip.classList.remove('hidden');
+  } else tip.classList.add('hidden');
+});
+cityCanvas.addEventListener('pointerup', e => {
+  const wasClick = cam.drag && cam.drag.moved < 5; cam.drag = null;
+  if (wasClick && !flight) { const it = cityPick(e); if (it) flyInto(it); }
+});
+cityCanvas.addEventListener('wheel', e => { cam.tRad = Math.max(12, Math.min(140, cam.tRad * (1 + Math.sign(e.deltaY) * .1))); cam.idle = 0; }, { passive: true });
+
+function flyInto(it) {
+  $('tip').classList.add('hidden');
+  const p = it.group.position, topY = city.mode > .5 ? it.cubes[it.n - 1].userData.baseY + it.csz : it.h;
+  const away = cc.position.clone().sub(p).setY(0).normalize();
+  flight = { from: cc.position.clone(), fromT: cam.target.clone(), to: p.clone().add(away.multiplyScalar(3.2)).setY(topY + 2.2),
+    toT: new V3(p.x, topY * .55, p.z), t0: clock.getElapsedTime(), dur: 1.7, dir: it.dir, faded: false };
+}
+function setMode(m) { city.modeTarget = m; $('mMetro').classList.toggle('on', m === 0); $('mMono').classList.toggle('on', m === 1); }
+$('mMetro').onclick = () => setMode(0);
+$('mMono').onclick = () => setMode(1);
+$('enterHome').onclick = () => { fade(true); setTimeout(() => enterFlat(state.cur || root), 380); };
+
+/* =====================================================================
+   MAP — Metroid-style 3D sector map in the right pane
+   ===================================================================== */
+const mapEl = $('map');
+const mr = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+mr.setPixelRatio(Math.min(devicePixelRatio, 2));
+mapEl.prepend(mr.domElement);
+const ms = new THREE.Scene();
+ms.fog = new THREE.Fog(0x020a14, 16, 46);
+const mc = new THREE.PerspectiveCamera(38, 1, .1, 200);
+const mapGrid = new THREE.GridHelper(60, 60, 0x123056, 0x0a1d36); ms.add(mapGrid);
+const rooms = new Map();
+const mcam = { theta: .8, phi: 1.05, rad: 32, tRad: 13, target: new V3(), drag: null, idle: 10 };
+
+const corridorGeo = new THREE.BufferGeometry();
+const corridors = new THREE.LineSegments(corridorGeo, new THREE.LineBasicMaterial({ color: 0x3a6fa8, transparent: true, opacity: .55 }));
+ms.add(corridors);
+const player = new THREE.Mesh(new THREE.ConeGeometry(.16, .38, 3), new THREE.MeshBasicMaterial({ color: 0xffd36b }));
+player.rotation.x = Math.PI; ms.add(player);
+const playerGlow = new THREE.Mesh(new THREE.SphereGeometry(.28, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: .25, blending: THREE.AdditiveBlending, depthWrite: false }));
+ms.add(playerGlow);
+const dropRing = new THREE.Mesh(new THREE.RingGeometry(.62, .7, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .8, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+dropRing.rotation.x = -Math.PI / 2; ms.add(dropRing);
+
+function layoutMap() {
+  invalidate();
+  const leaves = new Map();
+  (function lc(d) { const s = subDirs(d); const n = s.length ? s.reduce((a, c) => a + lc(c), 0) : 1; leaves.set(d.id, n); return n; })(root);
+  const dirs = allDirs(); const logs = dirs.map(d => Math.log(sizeOf(d) + 1)); const lmin = Math.min(...logs), lmax = Math.max(...logs);
+  let maxDepth = 0;
+  (function place(d, a0, a1, dep) {
+    maxDepth = Math.max(maxDepth, dep);
+    const a = (a0 + a1) / 2, r = dep * 2.3;
+    const room = rooms.get(d.id) || createRoom(d);
+    room.goal.set(Math.cos(a) * r, -dep * 1.6, Math.sin(a) * r);
+    room.size = .34 + .4 * (Math.log(sizeOf(d) + 1) - lmin) / Math.max(1e-6, lmax - lmin);
+    let acc = a0;
+    for (const c of subDirs(d)) { const span = (a1 - a0) * leaves.get(c.id) / leaves.get(d.id); place(c, acc, acc + span, dep + 1); acc += span; }
+  })(root, 0, Math.PI * 2, 0);
+  mapGrid.position.y = -maxDepth * 1.6 - 1.2;
+  const alive = new Set(dirs.map(d => d.id));
+  for (const [id, r] of rooms) if (!alive.has(id)) { ms.remove(r.group); r.label.remove(); rooms.delete(id); }
+  corridorGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((dirs.length - 1) * 6 * 3), 3));
+}
+
+function createRoom(d, from) {
+  const group = new THREE.Group();
+  const fill = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color: C.unexp.clone(), transparent: true, opacity: .08, depthWrite: false }));
+  const edges = new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: C.unexp.clone(), transparent: true, opacity: .6 }));
+  const dashed = new THREE.LineSegments(boxEdges, new THREE.LineDashedMaterial({ color: C.cut, dashSize: .12, gapSize: .09, transparent: true }));
+  dashed.computeLineDistances(); dashed.visible = false;
+  const ghost = new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: C.copy, transparent: true, opacity: .7 }));
+  ghost.visible = false;
+  group.add(fill, edges, dashed, ghost);
+  ms.add(group);
+  const label = document.createElement('div'); label.className = 'rlabel'; $('mapLabels').appendChild(label);
+  const parentRoom = d.parent && rooms.get(d.parent.id);
+  const start = from ? from.clone() : parentRoom ? parentRoom.pos.clone() : new V3();
+  const r = { dir: d, group, fill, edges, dashed, ghost, label, pos: start, goal: start.clone(), size: .4, spawn: 0, flash: 0 };
+  group.position.copy(start);
+  rooms.set(d.id, r);
+  return r;
+}
+const roomPos = (d) => rooms.get(d.id).pos;
+
+function corridorPts(p, c) {
+  const P = roomPos(p), Q = roomPos(c), m = (P.y + Q.y) / 2;
+  return [P.clone(), new V3(P.x, m, P.z), new V3(Q.x, m, Q.z), Q.clone()];
+}
+function routePts(a, b) {
+  const anc = new Set(); for (let x = a; x; x = x.parent) anc.add(x);
+  let l = b; const down = []; while (!anc.has(l)) { down.unshift(l); l = l.parent; }
+  const pts = [roomPos(a).clone()];
+  for (let x = a; x !== l; x = x.parent) pts.push(...corridorPts(x.parent, x).reverse().slice(1));
+  let prev = l; for (const d of down) { pts.push(...corridorPts(prev, d).slice(1)); prev = d; }
+  return pts.filter((p, i) => i === 0 || p.distanceTo(pts[i - 1]) > 1e-3);
+}
+function makeTube(pts, color, radius, opacity) {
+  const path = new THREE.CurvePath();
+  for (let i = 0; i < pts.length - 1; i++) path.add(new THREE.LineCurve3(pts[i], pts[i + 1]));
+  const segs = Math.max(12, Math.round(path.getLength() * 30));
+  const mesh = new THREE.Mesh(new THREE.TubeGeometry(path, segs, radius, 6, false),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false }));
+  mesh.userData = { path, segs }; ms.add(mesh); return mesh;
+}
+const tubeProgress = (m, p) => m.geometry.setDrawRange(0, Math.floor(m.userData.segs * clamp01(p)) * 36);
+function dropTube(m) {
+  if (!m) return;
+  (m.userData.packets || []).forEach(p => { ms.remove(p); p.material.dispose(); });
+  ms.remove(m); m.geometry.dispose(); m.material.dispose();
+}
+
+/* =====================================================================
+   App state, navigation, clipboard
+   ===================================================================== */
+const state = { cur: null, back: [], fwd: [], sel: null, clip: null, visited: new Set(), preview: null };
+let travel = null;   // the player moving between rooms
+let pending = null;  // clipboard route: source room -> current room
+let payload = null;  // paste in flight
+const trails = [];   // fading travel trails
+const packetGeo = new THREE.BoxGeometry(.1, .1, .1);
+
+function startTravel(from, to) {
+  if (travel) finishTravel();
+  if (!from || from === to) { onArrive(); return; }
+  const pts = routePts(from, to);
+  const tube = makeTube(pts, C.route, .035, .95); tubeProgress(tube, 0);
+  const hops = pts.length / 3;
+  travel = { tube, t0: clock.getElapsedTime(), dur: Math.min(1.8, .45 + hops * .22) };
+}
+function finishTravel() {
+  if (!travel) return;
+  tubeProgress(travel.tube, 1);
+  trails.push({ tube: travel.tube, t0: clock.getElapsedTime() });
+  travel = null; onArrive();
+}
+function onArrive() { refreshPending(true); }
+
+function navigate(to, push = true) {
+  if (!to || to.type !== 'dir' || to === state.cur) return;
+  const from = state.cur;
+  if (push && from) { state.back.push(from); state.fwd = []; }
+  state.cur = to; state.sel = null;
+  for (let x = to; x; x = x.parent) state.visited.add(x.id);
+  renderList(); startTravel(from, to);
+  log('ENTER', pathOf(to));
+}
+const goBack = () => { const d = state.back.pop(); if (d) { state.fwd.push(state.cur); navigate(d, false); } };
+const goFwd = () => { const d = state.fwd.pop(); if (d) { state.back.push(state.cur); navigate(d, false); } };
+const goUp = () => state.cur.parent && navigate(state.cur.parent);
+
+function setClip(mode) {
+  const item = state.sel && state.cur.children.find(c => c.id === state.sel);
+  if (!item) { toast('Select an item first'); return; }
+  state.clip = { mode, item, src: item.type === 'dir' ? item : state.cur };
+  log(mode.toUpperCase(), pathOf(item));
+  rooms.get(state.clip.src.id).flash = 1;
+  renderList(); refreshPending(true);
+}
+function clearClip() { state.clip = null; dropTube(pending?.tube); pending = null; renderList(); }
+
+function refreshPending(animate) {
+  if (pending) { dropTube(pending.tube); pending = null; }
+  const cl = state.clip; if (!cl || !rooms.has(cl.src.id)) return;
+  if (cl.src === state.cur) return;
+  const color = cl.mode === 'copy' ? C.copy : C.cut;
+  const tube = makeTube(routePts(cl.src, state.cur), color, .028, .55);
+  pending = { tube, t0: clock.getElapsedTime(), dur: animate ? 1.1 : .01, packets: [] };
+  tubeProgress(tube, 0);
+  for (let i = 0; i < 7; i++) {
+    const p = new THREE.Mesh(packetGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+    ms.add(p); pending.packets.push(p);
+  }
+  tube.userData.packets = pending.packets;
+}
+
+function paste() {
+  const cl = state.clip, dest = state.cur;
+  if (!cl) { toast('Clipboard is empty'); return; }
+  if (payload) return;
+  const item = cl.item;
+  if (cl.mode === 'cut' && item.parent === dest) { toast('Item is already in this folder'); return; }
+  if (item.type === 'dir' && isAncestorOrSelf(item, dest)) { toast('Cannot paste a folder inside itself'); return; }
+  const color = cl.mode === 'copy' ? C.copy : C.cut;
+  const apply = () => {
+    let placed;
+    if (cl.mode === 'copy') { const nm = uniqueName(dest, item.name); placed = deepClone(item, dest); placed.name = nm; }
+    else { const p = item.parent; p.children.splice(p.children.indexOf(item), 1); item.parent = dest; item.name = uniqueName(dest, item.name); dest.children.push(item); placed = item; }
+    log('PASTE', `${cl.mode === 'copy' ? '⧉' : '✂'} ${placed.name} → ${pathOf(dest)}`);
+    const srcPos = roomPos(cl.src).clone();
+    if (cl.mode === 'cut') { state.clip = null; dropTube(pending?.tube); pending = null; }
+    layoutMap();
+    if (placed.type === 'dir') for (const d of allDirs(placed)) { const r = rooms.get(d.id); if (r && cl.mode === 'copy') { r.pos.copy(srcPos); r.spawn = 0; } }
+    rooms.get(dest.id).flash = 1;
+    state.sel = placed.id; state.fresh = placed.id;
+    renderList();
+    setTimeout(() => refreshPending(false), 1100);
+  };
+  if (cl.src === dest) { apply(); return; }
+  const pts = routePts(cl.src, dest);
+  const tube = makeTube(pts, color, .05, .9); tubeProgress(tube, 0);
+  const cube = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .9 }));
+  cube.scale.setScalar(.22); ms.add(cube);
+  payload = { tube, cube, t0: clock.getElapsedTime(), dur: 1.3, apply };
+}
+let newCount = 1;
+function newFolder() {
+  const d = mk(uniqueName(state.cur, `New Folder ${newCount++}`), 'dir', state.cur);
+  layoutMap(); rooms.get(d.id).pos.copy(roomPos(state.cur));
+  state.sel = d.id; state.fresh = d.id; renderList(); log('MKDIR', pathOf(d));
+  refreshPending(false);
+}
+
+/* =====================================================================
+   Flat file list
+   ===================================================================== */
+const folderSvg = (c) => `<svg viewBox="0 0 48 40"><path d="M2 6a3 3 0 0 1 3-3h13l4 5h21a3 3 0 0 1 3 3v24a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3z" fill="${c}" opacity=".55"/><path d="M2 13h44v21a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3z" fill="${c}"/></svg>`;
+const fileSvg = (c, ext) => `<svg viewBox="0 0 48 40"><path d="M12 1h17l9 9v28H12z" fill="#0e1f38" stroke="${c}" stroke-width="1.5"/><path d="M29 1v9h9" fill="none" stroke="${c}" stroke-width="1.5"/><text x="25" y="31" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" font-weight="600" fill="${c}">${ext.slice(0, 4).toUpperCase()}</text></svg>`;
+const colCss = (n, l = .6) => '#' + new THREE.Color().setHSL(hueOf(n), .7, l).getHexString();
+
+function sortedChildren(d) { return [...d.children].sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'dir' ? -1 : 1)); }
+function renderList() {
+  const d = state.cur, files = $('files');
+  invalidate();
+  const kids = sortedChildren(d);
+  files.innerHTML = kids.length ? '' : '<div class="empty">EMPTY SECTOR</div>';
+  for (const n of kids) {
+    const el = document.createElement('div'); el.className = 'card'; el.dataset.id = n.id;
+    if (n.id === state.sel) el.classList.add('sel');
+    if (state.clip?.item === n) el.classList.add(state.clip.mode === 'copy' ? 'copying' : 'cutting');
+    if (n.id === state.fresh) el.classList.add('fresh');
+    const ext = n.type === 'file' ? n.name.split('.').pop() : '';
+    el.innerHTML = (n.type === 'dir' ? folderSvg(colCss(n)) : fileSvg(colCss(n, .7), ext)) +
+      `<div class="nm">${n.name}</div><div class="sz">${n.type === 'dir' ? `${n.children.length} items · ` : ''}${fmtSize(sizeOf(n))}</div>`;
+    el.onclick = () => { state.sel = n.id; markSel(); };
+    el.ondblclick = () => n.type === 'dir' && navigate(n);
+    if (n.type === 'dir') { el.onmouseenter = () => { state.preview = n; }; el.onmouseleave = () => { if (state.preview === n) state.preview = null; }; }
+    files.appendChild(el);
+  }
+  state.fresh = null;
+  // breadcrumbs
+  const chain = []; for (let x = d; x; x = x.parent) chain.unshift(x);
+  $('crumbs').innerHTML = '';
+  chain.forEach((c, i) => {
+    if (i) { const s = document.createElement('i'); s.textContent = '/'; $('crumbs').appendChild(s); }
+    const a = document.createElement('a'); a.textContent = c.name; if (c === d) a.className = 'last';
+    a.onclick = () => navigate(c); a.onmouseenter = () => { state.preview = c; }; a.onmouseleave = () => { state.preview = null; };
+    $('crumbs').appendChild(a);
+  });
+  $('bBack').disabled = !state.back.length; $('bFwd').disabled = !state.fwd.length; $('bUp').disabled = !d.parent;
+  $('bPaste').disabled = !state.clip;
+  const chip = $('clipChip');
+  if (state.clip) {
+    chip.className = state.clip.mode; chip.innerHTML = `${state.clip.mode === 'copy' ? '⧉ COPY' : '✂ CUT'} ${state.clip.item.name}<button title="Clear clipboard">×</button>`;
+    chip.querySelector('button').onclick = clearClip;
+  } else chip.className = 'hidden';
+  $('mapPath').textContent = pathOf(d);
+  renderStatus();
+}
+function renderStatus() {
+  const d = state.cur, sel = d.children.find(k => k.id === state.sel);
+  $('status').innerHTML = `<span>${d.children.length} items · ${fmtSize(sizeOf(d))}</span>${sel ? `<span>selected: ${sel.name}</span>` : ''}<span>explored ${state.visited.size}/${allDirs().length} sectors</span>`;
+}
+function markSel() {
+  document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', +c.dataset.id === state.sel));
+  renderStatus();
+}
+
+const logLines = [];
+function log(k, msg) {
+  logLines.unshift(`<span class="k">${k}</span>${msg}`); logLines.length = Math.min(logLines.length, 7);
+  $('logbook').innerHTML = logLines.map(l => `<div>${l}</div>`).join('');
+}
+
+/* =====================================================================
+   Map frame
+   ===================================================================== */
+const _v = new V3();
+function mapFrame(t, dt) {
+  // rooms
+  const cl = state.clip, labelSet = new Set([root.id]);
+  if (state.cur) { labelSet.add(state.cur.id); if (state.cur.parent) labelSet.add(state.cur.parent.id); subDirs(state.cur).forEach(c => labelSet.add(c.id)); }
+  if (cl) labelSet.add(cl.src.id);
+  if (state.preview) labelSet.add(state.preview.id);
+  const w = mapEl.clientWidth, h = mapEl.clientHeight;
+  for (const r of rooms.values()) {
+    r.pos.lerp(r.goal, Math.min(1, dt * 3));
+    r.spawn = Math.min(1, r.spawn + dt * 1.8);
+    r.flash = Math.max(0, r.flash - dt * 1.5);
+    const d = r.dir, explored = state.visited.has(d.id), isCur = d === state.cur;
+    const isSrc = cl && cl.src === d, isPrev = state.preview === d;
+    let col = explored ? C.exp : C.unexp, fo = explored ? .2 : .05, eo = explored ? .95 : .5;
+    if (isCur) { col = C.cur; fo = .32 + .1 * Math.sin(t * 4); eo = 1; }
+    if (isSrc) { col = cl.mode === 'copy' ? C.copy : C.cut; fo = cl.mode === 'cut' ? .22 + .2 * (Math.random() < .08 ? 1 : 0) : .35; eo = 1; }
+    if (isPrev && !isCur) { fo += .2; eo = 1; }
+    fo += r.flash * .6;
+    r.fill.material.color.lerp(col, .2); r.edges.material.color.lerp(col, .2);
+    r.fill.material.opacity = fo; r.edges.material.opacity = eo;
+    r.edges.visible = !(isSrc && cl.mode === 'cut'); r.dashed.visible = !!(isSrc && cl.mode === 'cut');
+    r.ghost.visible = !!(isSrc && cl.mode === 'copy');
+    if (r.ghost.visible) { r.ghost.position.set(.32 + .08 * Math.sin(t * 2.4), .32 + .05 * Math.cos(t * 2.4), -.2); r.ghost.material.opacity = .45 + .3 * Math.sin(t * 3); }
+    const s = r.size * easeOut(r.spawn) * (1 + r.flash * .4) * (isSrc && cl.mode === 'cut' ? .85 : 1);
+    r.group.scale.setScalar(Math.max(.001, s));
+    r.group.position.copy(r.pos);
+    if (isSrc && cl.mode === 'cut') { r.group.position.x += (Math.random() - .5) * .02; r.group.rotation.y = Math.sin(t * 9) * .04; } else r.group.rotation.y = 0;
+    if (isSrc && cl.mode === 'cut') r.dashed.material.color.copy(C.cut);
+    // label
+    const show = labelSet.has(d.id);
+    r.label.style.opacity = show ? 1 : 0;
+    if (show) {
+      _v.copy(r.pos); _v.y += s * .6; _v.project(mc);
+      r.label.style.left = ((_v.x + 1) / 2 * w) + 'px'; r.label.style.top = ((1 - _v.y) / 2 * h) + 'px';
+      r.label.className = 'rlabel' + (isSrc ? ' ' + cl.mode : isCur ? ' cur' : explored ? '' : ' unexp');
+      const tag = isSrc ? `<em>${cl.mode === 'copy' ? '⧉ copy' : '✂ cut'}: ${cl.item.name}</em>` : isCur ? '<em>▼ you are here</em>' : '';
+      const html = (d === root ? 'HOME' : d.name) + tag;
+      if (r.label._h !== html) { r.label.innerHTML = html; r.label._h = html; }
+    }
+  }
+  // corridors
+  const pos = corridorGeo.getAttribute('position');
+  if (pos) {
+    let i = 0;
+    for (const d of allDirs()) {
+      if (!d.parent) continue;
+      const pts = corridorPts(d.parent, d);
+      for (let k = 0; k < 3; k++) { pos.setXYZ(i++, pts[k].x, pts[k].y, pts[k].z); pos.setXYZ(i++, pts[k + 1].x, pts[k + 1].y, pts[k + 1].z); }
+    }
+    pos.needsUpdate = true; corridorGeo.setDrawRange(0, i);
+  }
+  // player travel
+  let focus = state.cur ? roomPos(state.cur) : new V3();
+  if (travel) {
+    const k = clamp01((t - travel.t0) / travel.dur), e = easeIO(k);
+    tubeProgress(travel.tube, e);
+    focus = travel.tube.userData.path.getPointAt(e);
+    if (k >= 1) finishTravel();
+  }
+  player.position.set(focus.x, focus.y + .75 + Math.sin(t * 3) * .06, focus.z); player.rotation.y = t * 2;
+  playerGlow.position.copy(player.position);
+  for (let i = trails.length - 1; i >= 0; i--) {
+    const a = 1 - (t - trails[i].t0) / 1.6;
+    if (a <= 0) { dropTube(trails[i].tube); trails.splice(i, 1); } else trails[i].tube.material.opacity = .95 * a;
+  }
+  // pending clipboard route with flowing packets
+  dropRing.visible = false;
+  if (pending) {
+    const k = clamp01((t - pending.t0) / pending.dur);
+    tubeProgress(pending.tube, easeOut(k));
+    const path = pending.tube.userData.path, n = pending.packets.length;
+    pending.packets.forEach((p, i) => {
+      const u = ((t * .35 + i / n) % 1) * easeOut(k);
+      p.position.copy(path.getPointAt(u)); p.rotation.set(t * 3, t * 2, 0); p.material.opacity = .9 * k;
+    });
+    if (state.cur && !travel) {
+      dropRing.visible = true; dropRing.material.color.copy(state.clip.mode === 'copy' ? C.copy : C.cut);
+      const cp = roomPos(state.cur); dropRing.position.set(cp.x, cp.y - .35, cp.z);
+      dropRing.scale.setScalar(1 + .15 * Math.sin(t * 4)); dropRing.material.opacity = .5 + .3 * Math.sin(t * 4);
+    }
+  }
+  // paste payload in flight
+  if (payload) {
+    const k = clamp01((t - payload.t0) / payload.dur), e = easeIO(k);
+    tubeProgress(payload.tube, Math.min(1, e * 1.25));
+    payload.cube.position.copy(payload.tube.userData.path.getPointAt(e));
+    payload.cube.rotation.set(t * 4, t * 3, 0);
+    if (k >= 1) {
+      ms.remove(payload.cube); payload.cube.material.dispose();
+      trails.push({ tube: payload.tube, t0: t });
+      const a = payload.apply; payload = null; a();
+    }
+  }
+  // preview hover route (from file list / breadcrumbs)
+  // camera
+  mcam.target.lerp(focus, Math.min(1, dt * 2.5));
+  if (!mcam.drag) { mcam.idle += dt; if (mcam.idle > 3) mcam.theta += dt * .06; }
+  mcam.rad += (mcam.tRad - mcam.rad) * Math.min(1, dt * 1.6);
+  mc.position.set(
+    mcam.target.x + mcam.rad * Math.sin(mcam.phi) * Math.cos(mcam.theta),
+    mcam.target.y + mcam.rad * Math.cos(mcam.phi),
+    mcam.target.z + mcam.rad * Math.sin(mcam.phi) * Math.sin(mcam.theta));
+  mc.lookAt(mcam.target);
+  mr.render(ms, mc);
+}
+
+mapEl.addEventListener('pointerdown', e => { mcam.drag = { x: e.clientX, y: e.clientY, th: mcam.theta, ph: mcam.phi, moved: 0 }; mapEl.setPointerCapture(e.pointerId); });
+mapEl.addEventListener('pointermove', e => {
+  if (!mcam.drag) return;
+  const dx = e.clientX - mcam.drag.x, dy = e.clientY - mcam.drag.y;
+  mcam.drag.moved = Math.max(mcam.drag.moved, Math.abs(dx) + Math.abs(dy));
+  mcam.theta = mcam.drag.th + dx * .008; mcam.phi = Math.max(.25, Math.min(1.5, mcam.drag.ph - dy * .006)); mcam.idle = 0;
+});
+mapEl.addEventListener('pointerup', e => {
+  const click = mcam.drag && mcam.drag.moved < 5; mcam.drag = null;
+  if (!click) return;
+  const r = mapEl.getBoundingClientRect();
+  ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+  ray.setFromCamera(ptr, mc);
+  const hit = ray.intersectObjects([...rooms.values()].map(r => r.fill), false)[0];
+  if (hit) { const room = [...rooms.values()].find(r => r.fill === hit.object); navigate(room.dir); }
+});
+mapEl.addEventListener('wheel', e => { e.preventDefault(); mcam.tRad = Math.max(5, Math.min(40, mcam.tRad * (1 + Math.sign(e.deltaY) * .1))); mcam.idle = 0; }, { passive: false });
+
+/* =====================================================================
+   View switching, input, loop
+   ===================================================================== */
+let view = 'city';
+function enterFlat(dir) {
+  view = 'flat'; $('city').classList.add('hidden'); $('flat').classList.remove('hidden'); $('tip').classList.add('hidden');
+  resize();
+  if (!state.cur) {
+    state.cur = dir; for (let x = dir; x; x = x.parent) state.visited.add(x.id);
+    layoutMap(); for (const r of rooms.values()) { r.pos.copy(r.goal); }
+    mcam.target.copy(roomPos(dir)); mcam.rad = 34; mcam.tRad = 13;
+    renderList(); log('ENTER', pathOf(dir));
+  } else { layoutMap(); mcam.rad = Math.max(mcam.rad, 26); navigate(dir); }
+  setTimeout(() => fade(false), 60);
+  $('files').focus();
+}
+function exitToCity() {
+  stopDemo();
+  fade(true);
+  setTimeout(() => {
+    view = 'city'; $('flat').classList.add('hidden'); $('city').classList.remove('hidden');
+    buildCity(); city.built -= 10; // skip the rise animation on return
+    const it = city.items.find(i => i.dir === state.cur);
+    if (it) { beacon.visible = true; beacon.position.set(it.group.position.x, 40, it.group.position.z); cam.target.copy(it.group.position); cam.rad = 14; cam.hgt = 12; }
+    else beacon.visible = false;
+    cam.goal.set(0, 2, 0); cam.tRad = 58; cam.tHgt = 30; cam.idle = 0;
+    resize(); fade(false);
+  }, 380);
+}
+
+$('bBack').onclick = goBack; $('bFwd').onclick = goFwd; $('bUp').onclick = goUp;
+$('bCopy').onclick = () => setClip('copy'); $('bCut').onclick = () => setClip('cut');
+$('bPaste').onclick = paste; $('bNew').onclick = newFolder; $('bCity').onclick = exitToCity;
+$('bDemo').onclick = () => demo.running ? stopDemo() : runDemo();
+
+addEventListener('keydown', e => {
+  if (view === 'city') {
+    if (e.key === 'Enter' && !flight) $('enterHome').click();
+    if (e.key.toLowerCase() === 'm') setMode(city.modeTarget ? 0 : 1);
+    return;
+  }
+  if (demo.running && !e.ctrlKey) stopDemo();
+  const ctrl = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  if (ctrl && e.shiftKey && k === 'n') { e.preventDefault(); newFolder(); return; }
+  if (ctrl && k === 'c') { e.preventDefault(); setClip('copy'); return; }
+  if (ctrl && k === 'x') { e.preventDefault(); setClip('cut'); return; }
+  if (ctrl && k === 'v') { e.preventDefault(); paste(); return; }
+  if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); goBack(); return; }
+  if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); goFwd(); return; }
+  if (e.altKey && e.key === 'ArrowUp' || e.key === 'Backspace') { e.preventDefault(); goUp(); return; }
+  if (e.key === 'Escape') { exitToCity(); return; }
+  const kids = sortedChildren(state.cur);
+  if (e.key === 'Enter') { const s = kids.find(c => c.id === state.sel); if (s?.type === 'dir') navigate(s); return; }
+  const arrows = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 0, ArrowUp: 0 };
+  if (e.key in arrows && kids.length) {
+    e.preventDefault();
+    const card = document.querySelector('.card'); const cols = card ? Math.max(1, Math.round($('files').clientWidth / (card.offsetWidth + 8))) : 1;
+    const step = e.key === 'ArrowDown' ? cols : e.key === 'ArrowUp' ? -cols : arrows[e.key];
+    let i = kids.findIndex(c => c.id === state.sel); i = i < 0 ? 0 : Math.max(0, Math.min(kids.length - 1, i + step));
+    state.sel = kids[i].id; markSel(); document.querySelector(`.card[data-id="${state.sel}"]`)?.scrollIntoView({ block: 'nearest' });
+  }
+});
+
+/* ---- scripted tour ---- */
+const demo = { running: false };
+function stopDemo() { demo.running = false; $('bDemo').textContent = '▶ Demo'; }
+async function step(ms) { await wait(ms); if (!demo.running) throw new Error('stopped'); }
+function selectName(name) { const n = state.cur.children.find(c => c.name === name); if (n) { state.sel = n.id; markSel(); } return n; }
+async function runDemo() {
+  demo.running = true; $('bDemo').textContent = '■ Stop';
+  try {
+    const go = async (p, ms = 1500) => { navigate(byPath(p)); await step(ms); };
+    if (state.clip) clearClip();
+    await go('/home', 900);
+    await go('/home/Documents'); await go('/home/Documents/Reports', 1300);
+    selectName('2026'); await step(700); setClip('copy'); await step(1600);
+    await go('/home', 1500); await go('/home/Archive', 1300); await go('/home/Archive/Backups', 1500);
+    paste(); await step(2600);
+    await go('/home/Downloads', 1300);
+    const big = directFiles(state.cur).sort((a, b) => b.size - a.size)[0]; selectName(big.name); await step(700);
+    setClip('cut'); await step(1500);
+    await go('/home/Archive', 1700); paste(); await step(2500);
+    await go('/home/Projects/xspherede/assets', 2000);
+    selectName('shaders'); await step(700); setClip('cut'); await step(1500);
+    await go('/home/Projects/cube-explorer', 2000); paste(); await step(2400);
+    toast('Demo complete');
+  } catch { /* stopped by the user */ }
+  stopDemo();
+}
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  cr.setSize(w, h, false); cc.aspect = w / h; cc.updateProjectionMatrix();
+  const mw = mapEl.clientWidth, mh = mapEl.clientHeight;
+  if (mw && mh) { mr.setSize(mw, mh, false); mc.aspect = mw / mh; mc.updateProjectionMatrix(); }
+}
+addEventListener('resize', resize);
+new ResizeObserver(resize).observe(mapEl);
+
+const clock = new THREE.Clock();
+let last = 0;
+function loop() {
+  const t = clock.getElapsedTime(), dt = Math.min(.05, t - last); last = t;
+  if (view === 'city') cityFrame(t, dt); else mapFrame(t, dt);
+  requestAnimationFrame(loop);
+}
+buildCity(); resize(); loop();
+</script>
+</body>
+</html>
