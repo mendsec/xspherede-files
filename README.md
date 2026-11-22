@@ -43,7 +43,9 @@ The difference is a 3D sector map on the right edge, inspired by the map screens
 
 ## Running the prototype
 
-The prototype is a single HTML file with no build step. Open it in a modern browser with WebGL 2:
+**Try it online:** https://mendsec.github.io/xspherede-files/
+
+To run it locally, note that the prototype is a single HTML file with no build step. Open it in a modern browser with WebGL 2:
 
 ```bash
 xdg-open prototype/cube-explorer/index.html
