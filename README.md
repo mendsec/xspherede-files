@@ -1,6 +1,6 @@
-# XSphereDE Files
+# Spheradian Files
 
-**A spatial file manager concept for [XSphereDE](https://github.com/mendsec/xspherede): your folders as a city, and a Metroid-style sector map that shows where you are, where you are going, and what you are carrying.**
+**A spatial file manager concept for [Spheradian](https://github.com/mendsec/spheradian): your folders as a city, and a Metroid-style sector map that shows where you are, where you are going, and what you are carrying.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Status: prototype](https://img.shields.io/badge/status-concept%20prototype-yellow.svg)](#project-status)
@@ -9,7 +9,7 @@
 
 ## The idea
 
-Most file managers show a flat list and leave you to keep the shape of your file system in your head. XSphereDE Files makes that shape visible in two stages.
+Most file managers show a flat list and leave you to keep the shape of your file system in your head. Spheradian Files makes that shape visible in two stages.
 
 ### 1. The city (overview)
 
@@ -43,7 +43,7 @@ The difference is a 3D sector map on the right edge, inspired by the map screens
 
 ## Running the prototype
 
-**Try it online:** https://mendsec.github.io/xspherede-files/
+**Try it online:** https://mendsec.github.io/spheradian-files/
 
 To run it locally, note that the prototype is a single HTML file with no build step. Open it in a modern browser with WebGL 2:
 
@@ -78,13 +78,13 @@ Press **▶ Demo** in the flat view for a scripted tour of copy, cut, and paste 
 
 - [x] Browser simulation of the city overview and the sector map
 - [ ] Interaction refinements: label collision handling, multi-selection, drag and drop onto map rooms
-- [ ] Native implementation in Rust and `wgpu`, sharing conventions with XSphereDE
+- [ ] Native implementation in Rust and `wgpu`, sharing conventions with Spheradian
 - [ ] Read-only access to a real directory tree, then real file operations
-- [ ] Integration as a component of the XSphereDE session, with trust-domain colours on rooms
+- [ ] Integration as a component of the Spheradian session, with trust-domain colours on rooms
 
-## Relationship to XSphereDE
+## Relationship to Spheradian
 
-XSphereDE is a spherical 3D desktop environment prototype. Like the file managers of other desktop environments, XSphereDE Files lives in its own repository so it can evolve, be released, and be reviewed independently of the compositor.
+Spheradian is a spherical 3D desktop environment prototype. Like the file managers of other desktop environments, Spheradian Files lives in its own repository so it can evolve, be released, and be reviewed independently of the compositor.
 
 ## Contributing
 
