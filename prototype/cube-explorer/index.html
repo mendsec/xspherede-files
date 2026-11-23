@@ -200,7 +200,7 @@ function mk(name, type, parent, size = 0) {
 }
 const SPEC = {
   Documents: { Reports: { '2025': {}, '2026': {} }, Invoices: {}, Notes: {} },
-  Projects: { xspherede: { src: {}, docs: {}, assets: { shaders: {}, textures: {} } }, 'cube-explorer': { src: {}, prototypes: {} }, sandbox: {} },
+  Projects: { spheradian: { src: {}, docs: {}, assets: { shaders: {}, textures: {} } }, 'cube-explorer': { src: {}, prototypes: {} }, sandbox: {} },
   Pictures: { Wallpapers: {}, Screenshots: {}, Camera: { '2025': {}, '2026': {} } },
   Music: { Ambient: {}, Synthwave: {} },
   Videos: { Captures: {}, Films: {} },
@@ -947,7 +947,7 @@ async function runDemo() {
     const big = directFiles(state.cur).sort((a, b) => b.size - a.size)[0]; selectName(big.name); await step(700);
     setClip('cut'); await step(1500);
     await go('/home/Archive', 1700); paste(); await step(2500);
-    await go('/home/Projects/xspherede/assets', 2000);
+    await go('/home/Projects/spheradian/assets', 2000);
     selectName('shaders'); await step(700); setClip('cut'); await step(1500);
     await go('/home/Projects/cube-explorer', 2000); paste(); await step(2400);
     toast('Demo complete');
