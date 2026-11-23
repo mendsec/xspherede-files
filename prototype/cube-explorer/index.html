@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Cube Explorer</title>
+<link rel="icon" href="../../brand/spheradian-logo-small.svg" type="image/svg+xml">
+<link rel="icon" href="../../brand/spheradian-logo-small-256.png" type="image/png" sizes="256x256">
+<link rel="apple-touch-icon" href="../../brand/spheradian-logo-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -36,6 +39,8 @@
     letter-spacing: .18em; color: #9cc3ff; text-shadow: 0 0 8px #000; white-space: nowrap; }
   .dlabel small { display: block; color: var(--muted); font-weight: 400; letter-spacing: .05em; text-align: center; }
   .cityHud { position: absolute; left: 24px; top: 20px; max-width: min(520px, calc(100% - 48px)); }
+  .cityHud .brand { display: flex; align-items: center; gap: 10px; }
+  .cityHud .brand img { width: 32px; height: 32px; display: block; }
   .cityHud h1 { margin: 0; font: 600 13px var(--mono); letter-spacing: .4em; color: #8fb6ff; }
   .cityHud p { margin: 6px 0 14px; color: var(--muted); font-size: 13px; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #050d1acc; }
@@ -133,7 +138,10 @@
   <canvas id="cityCanvas"></canvas>
   <div id="cityLabels"></div>
   <div class="cityHud">
-    <h1>CUBE EXPLORER</h1>
+    <div class="brand">
+      <a href="https://spheradian.github.io/spheradian/" title="Spheradian"><img src="../../brand/spheradian-logo-transparent.svg" alt="Spheradian" width="32" height="32"></a>
+      <h1>CUBE EXPLORER</h1>
+    </div>
     <p>Every folder is a structure. Height is total size, footprint is file count, density is average file weight.
        Click a structure to dive into it, or drag to orbit.</p>
     <div class="seg" role="group" aria-label="City style">
