@@ -9,7 +9,7 @@
 
 **A spatial file manager concept for [Spheradian](https://github.com/spheradian/spheradian): your folders as a city, and a Metroid-style sector map that shows where you are, where you are going, and what you are carrying.**
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Status: prototype](https://img.shields.io/badge/status-concept%20prototype-yellow.svg)](#project-status)
 
 ---
@@ -99,4 +99,4 @@ Ideas and feedback on the interaction design are welcome through issues. All cod
 
 ## License
 
-[MIT](LICENSE)
+[Apache License 2.0](LICENSE), the same licence as the rest of the [Spheradian](https://github.com/spheradian) organization. Versions before this change were released under the MIT License.
