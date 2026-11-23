@@ -1,6 +1,6 @@
 # Spheradian Files
 
-**A spatial file manager concept for [Spheradian](https://github.com/mendsec/spheradian): your folders as a city, and a Metroid-style sector map that shows where you are, where you are going, and what you are carrying.**
+**A spatial file manager concept for [Spheradian](https://github.com/spheradian/spheradian): your folders as a city, and a Metroid-style sector map that shows where you are, where you are going, and what you are carrying.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Status: prototype](https://img.shields.io/badge/status-concept%20prototype-yellow.svg)](#project-status)
@@ -43,7 +43,7 @@ The difference is a 3D sector map on the right edge, inspired by the map screens
 
 ## Running the prototype
 
-**Try it online:** https://mendsec.github.io/spheradian-files/
+**Try it online:** https://spheradian.github.io/files/
 
 To run it locally, note that the prototype is a single HTML file with no build step. Open it in a modern browser with WebGL 2:
 
