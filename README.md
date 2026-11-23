@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/spheradian-logo-transparent.svg">
+    <img src="brand/spheradian-logo-light.svg" alt="Spheradian logo: a wireframe sphere with a curved window whose solid angle is drawn back to the viewer at its center" width="160">
+  </picture>
+</p>
+
 # Spheradian Files
 
 **A spatial file manager concept for [Spheradian](https://github.com/spheradian/spheradian): your folders as a city, and a Metroid-style sector map that shows where you are, where you are going, and what you are carrying.**
